@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import argparse
 from csv import DictWriter
 import json
@@ -26,27 +28,24 @@ def clean_string(s):
     return unicode(s).strip().encode('utf-8')
 
 
-def scrape_url(url, export_type):
-    '''Scrape one OpenRice URL and export data'''
-    req = requests.get(url)
-    if export_type == 'raw':
-        print req.text
-    elif export_type in ('csv', 'json'):
+class RawExporter(object):
+    """Exporter that just prints the raw HTML response"""
+    def __init__(self, file):
+        self.file = file
 
-        # Switch between two different implementations of the `export_row`
-        # function depending on whether it's json or csv
-        if export_type == 'csv':
-            csv_writer = DictWriter(
-                sys.stdout,
-                fieldnames=('restaurant_name', 'address'))
-            export_row = csv_writer.writerow
-            csv_writer.writeheader()
-        elif export_type == 'json':
-            def export_row(data):
-                print json.dumps(data, ensure_ascii=False)
+    def export(self, response):
+        print(response.text, file=self.file)
 
 
-        soup = BeautifulSoup(req.text)
+class BaseParsingExporter(object):
+    """Base class for exporters that parse the HTML"""
+    def __init__(self, file):
+        self.file = file
+
+    def export(self, response):
+        self.export_header()
+
+        soup = BeautifulSoup(response.text)
         poi_blocks = soup.find_all(class_='normal_poiblock')
         for poi_block in poi_blocks:
             # Pull out all text contained within the first 'a' tag with the
@@ -63,7 +62,59 @@ def scrape_url(url, export_type):
                 restaurant_name=restaurant_name,
                 address=address,
             )
-            export_row(data)
+            self.export_row(data)
+
+        self.export_footer()
+
+    def export_header(self):
+        pass
+
+    def export_footer(self):
+        pass
+
+    def export_row(self, data):
+        pass
+
+
+class CsvExporter(BaseParsingExporter):
+    """Exporter that exports to CSV"""
+    def __init__(self, file):
+        super(CsvExporter, self).__init__(file)
+        self._csv_writer = DictWriter(
+            self.file,
+            fieldnames=('restaurant_name', 'address'))
+
+    def export_header(self):
+        self._csv_writer.writeheader()
+
+    def export_row(self, data):
+        self._csv_writer.writerow(data)
+
+
+class JsonExporter(BaseParsingExporter):
+    """Exporter that exports to JSON"""
+    def export_header(self):
+        print('[', file=self.file)
+
+    def export_row(self, data):
+        print(json.dumps(data, ensure_ascii=False), ',', sep='', file=self.file)
+
+    def export_footer(self):
+        print(']', file=self.file)
+
+
+def scrape_url(url, export_type):
+    '''Scrape one OpenRice URL and export data'''
+    exporter = None
+    output = sys.stdout
+    if export_type == 'raw':
+        exporter = RawExporter(output)
+    elif export_type == 'csv':
+        exporter = CsvExporter(output)
+    elif export_type == 'json':
+        exporter = JsonExporter(output)
+
+    exporter.export(requests.get(url))
 
 
 if __name__ == '__main__':
