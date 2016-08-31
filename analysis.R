@@ -22,7 +22,7 @@ barplot(count1,names.arg=names, cex.names=0.5, las=2)
 J<-read.csv('Kowloon_Formatted.csv') #Kowloon restaurant database
 J$restaurant_name<-gsub('_{2,}','',J$restaurant_name) #
 J$restaurant_name<-gsub('_',' ', J$restaurant_name)
-J<-J[-which(J[,1]=='restaurant name'),]
+J<-J[-which(J[,1]=='restaurant name'),] #because of my scraping methodology, column names are frequently repeated. This is a simple enough fix
 J$avg_price<-as.numeric(as.character(mapvalues(J$price,prices,avg_price)))
 J$smiles<-as.numeric(as.character(J$smiles))
 J$frowns<-as.numeric(as.character(J$frowns))
@@ -34,7 +34,7 @@ NT<-NT[-which(NT[,1]=='restaurant name'),]
 NT$avg_price<-as.numeric(as.character(mapvalues(NT$price,prices,avg_price)))
 NT$smiles<-as.numeric(as.character(NT$smiles))
 NT$frowns<-as.numeric(as.character(NT$frowns))
-NT<-unique(NT)
+NT<-unique(NT) #Removes the many duplicate entries in the OpenRice data
 
 OUT<-read.csv('Outlying_Formatted.csv')
 OUT$restaurant_name<-gsub('_{2,}','',OUT$restaurant_name)
@@ -206,8 +206,10 @@ for(i in 1:nrow(TotAll)){
 	}
 }
 start<-Sys.time()
+store_fixes=numeric(length(k))
 for(i in 1:length(fix)){
-	k<-geocode(paste(Total$address[fix[i]], 'Hong Kong', sep=', '))
+	k<-geocode(paste(TotAll$address[fix[i]], 'Hong Kong', sep=', '))
+	store_fixes<-k$lon
 	TotAll[fix[i],c(16,17)]<-c(k$lon, k$lat)
 }
 end<-Sys.time()
